@@ -3,8 +3,9 @@
   'use strict';
 
   const CFG = window.DARAKBANG_CONFIG || {};
-  const PREVIEW = !CFG.API_URL;               // API 주소 없으면 미리보기 모드
-  const SHEETS = ['공지', '결단', '일정', '기도제목', '간식', '암송', '통독'];
+  const PREVIEW = !CFG.API_URL || /[?&]preview=1/.test(location.search); // API 주소 없거나 ?preview=1 이면 미리보기 모드
+  const SHEETS = ['공지', '일정', '기도제목', '간식', '암송', '통독', '사진첩'];
+  const MAX_PHOTOS = 10, PHOTO_MAX_PX = 1600, PHOTO_QUALITY = 0.85;
   const SNACK_CATS = ['치킨', '피자', '중식', '분식', '한식', '양식', '카페·디저트', '기타'];
   const EVENT_KINDS = ['순모임', '행사', '기타'];
   const DOW = ['일', '월', '화', '수', '목', '금', '토'];
@@ -23,6 +24,7 @@
     snackCat: '전체',
     snackSort: 'new',
     openNotice: null,
+    viewer: null,
   };
 
   function loadCache() {
@@ -45,10 +47,20 @@
     if (isNaN(n)) return '';
     return n === 0 ? 'D-day' : n > 0 ? 'D-' + n : 'D+' + (-n);
   }
+  function endOf(ev) { return ev['종료일'] && ev['종료일'] > ev['날짜'] ? ev['종료일'] : ev['날짜']; }
+  function nights(ev) { const n = daysBetween(ev['날짜'], endOf(ev)); return n > 0 ? n : 0; }
+  function spanLabel(ev) { const n = nights(ev); return n ? `${fmtShort(ev['날짜'])}–${fmtShort(endOf(ev))} · ${n}박 ${n + 1}일` : ''; }
+  function covers(ev, day) { return ev['날짜'] <= day && day <= endOf(ev); }
   function byDesc(key) { return (a, b) => String(b[key]).localeCompare(String(a[key])); }
   function byAsc(key) { return (a, b) => String(a[key]).localeCompare(String(b[key])); }
 
   // ───────────────────────── API ─────────────────────────
+  // 미리보기용 파일 저장소 (localStorage). 실제 모드에서는 드라이브 파일 ID를 씀.
+  const mockFiles = {
+    all() { try { return JSON.parse(localStorage.getItem('dk_mock_files') || '{}'); } catch (_) { return {}; } },
+    get(id) { return this.all()[id] || ''; },
+    put(id, url) { const m = this.all(); m[id] = url; try { localStorage.setItem('dk_mock_files', JSON.stringify(m)); } catch (_) { toast('미리보기 저장 공간이 부족해요'); } },
+  };
   const api = PREVIEW ? mockApi() : realApi();
 
   function realApi() {
@@ -67,6 +79,7 @@
       all: () => get({ action: 'all', token: state.token }),
       save: (sheet, row) => post({ action: 'save', sheet, row, token: state.token }),
       del: (sheet, id) => post({ action: 'delete', sheet, id, token: state.token }),
+      upload: (name, mime, data) => post({ action: 'upload', name, mime, data, token: state.token }),
     };
   }
 
@@ -91,6 +104,8 @@
         persist(); return { ok: true, row };
       },
       del: async (sheet, id) => { await wait(200); store[sheet] = (store[sheet] || []).filter(r => r.id !== id); persist(); return { ok: true }; },
+      // 미리보기에서는 드라이브 대신 data URL을 그대로 파일 ID로 사용
+      upload: async (name, mime, data) => { await wait(400); const id = 'mock-' + Math.random().toString(36).slice(2, 9); mockFiles.put(id, 'data:' + mime + ';base64,' + data); return { ok: true, fileId: id }; },
     };
   }
 
@@ -100,18 +115,13 @@
     return {
       '공지': [
         { id: 'n1', '작성일시': d(-2) + ' 21:10', '제목': '이번 주 순모임 장소 변경', '내용': '이번 주는 교회 2층 세미나실 대신 카페 그린에서 모입니다.\n7시 30분까지 와주세요.', '고정': 'Y', '작성자': '준원' },
-        { id: 'n2', '작성일시': d(-6) + ' 09:00', '제목': '겨울 수련회 참가 신청', '내용': '12월 수련회 참가 신청을 받습니다. 결단 탭의 D-day 확인하고 신청해 주세요.', '고정': '', '작성자': '준원' },
-      ],
-      '결단': [
-        { id: 'r1', '작성일시': d(-10) + ' 20:00', '제목': '신약 1독 완주', '내용': '매일 3장씩, 주일 제외', '목표일': d(23), '상태': '진행', '작성자': '다락방' },
-        { id: 'r2', '작성일시': d(-20) + ' 20:00', '제목': '수련회 참가 신청 마감', '내용': '', '목표일': d(5), '상태': '진행', '작성자': '준원' },
-        { id: 'r3', '작성일시': d(-40) + ' 20:00', '제목': '새벽기도 2주 연속', '내용': '', '목표일': d(-12), '상태': '완료', '작성자': '다락방' },
+        { id: 'n2', '작성일시': d(-6) + ' 09:00', '제목': '겨울 수련회 참가 신청', '내용': '12월 수련회 참가 신청을 받습니다. 캘린더에서 날짜 확인하고 신청해 주세요.', '고정': '', '작성자': '준원' },
       ],
       '일정': [
         { id: 'e1', '날짜': d(0), '시작': '19:30', '종료': '21:30', '제목': '순모임', '장소': '카페 그린', '종류': '순모임', '메모': '' },
         { id: 'e2', '날짜': d(7), '시작': '19:30', '종료': '21:30', '제목': '순모임', '장소': '교회 2층', '종류': '순모임', '메모': '' },
         { id: 'e3', '날짜': d(12), '시작': '10:00', '종료': '', '제목': '그룹 연합 예배', '장소': '본당', '종류': '행사', '메모': '무화과 그룹 전체' },
-        { id: 'e4', '날짜': d(23), '시작': '', '종료': '', '제목': '겨울 수련회 출발', '장소': '교회 앞', '종류': '행사', '메모': '' },
+        { id: 'e4', '날짜': d(23), '종료일': d(25), '시작': '09:00', '종료': '', '제목': '겨울 수련회', '장소': '양평 수양관', '종류': '행사', '메모': '2박 3일' },
       ],
       '기도제목': [
         { id: 'p1', '작성일시': d(-1) + ' 22:00', '이름': '', '내용': '다음 주 면접 잘 볼 수 있도록', '응답': '', '응답메모': '' },
@@ -126,12 +136,29 @@
       '암송': [
         { id: 'v1', '시작일': d(-3), '구절': '시편 1:2', '본문': '오직 여호와의 율법을 즐거워하여 그의 율법을 주야로 묵상하는도다' },
       ],
+      '사진첩': [
+        { id: 'ph1', '작성일시': d(-2) + ' 21:40', '설명': '카페 그린에서 순모임', '파일IDs': samplePhotos(3).join(','), '작성자': '준원' },
+        { id: 'ph2', '작성일시': d(-9) + ' 22:10', '설명': '연합예배 뒤풀이', '파일IDs': samplePhotos(5, 1).join(','), '작성자': '' },
+      ],
       '통독': [
         { id: 't1', '날짜': d(-1), '범위': '마태복음 5-7장' },
         { id: 't2', '날짜': d(0), '범위': '마태복음 8-10장' },
         { id: 't3', '날짜': d(1), '범위': '마태복음 11-13장' },
       ],
     };
+  }
+
+  // 미리보기용 자리표시 이미지. SVG를 저장소에 넣고 id 목록 반환
+  function samplePhotos(n, seed) {
+    const colors = ['#6B2D5C', '#5B7A4E', '#D98E9A', '#8A4A7A', '#A8B59B', '#EADDE6'];
+    return Array.from({ length: n }, (_, i) => {
+      return 'mock-sample-' + (i + (seed || 0)) % colors.length;
+    });
+  }
+  function sampleSvg(k) {
+    const colors = ['#6B2D5C', '#5B7A4E', '#D98E9A', '#8A4A7A', '#A8B59B', '#EADDE6'];
+    const c = colors[k % colors.length];
+    return 'data:image/svg+xml;base64,' + btoa(`<svg xmlns='http://www.w3.org/2000/svg' width='400' height='400'><rect width='400' height='400' fill='${c}'/><circle cx='200' cy='230' r='90' fill='rgba(255,255,255,.25)'/></svg>`);
   }
 
   // ───────────────────────── 공통 UI ─────────────────────────
@@ -144,6 +171,14 @@
     const el = $('#loading');
     if (on) { el.className = 'on'; }
     else { el.className = 'done'; setTimeout(() => { el.className = ''; }, 600); }
+  }
+  function photoUrl(id, w) {
+    id = String(id || '').trim();
+    if (!id) return '';
+    if (id.startsWith('mock-sample-')) return sampleSvg(+id.slice(12) || 0);
+    if (id.startsWith('mock-')) return mockFiles.get(id);
+    if (id.startsWith('http')) return id;
+    return 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(id) + '&sz=w' + (w || 400);
   }
   function stars(n) {
     n = Math.max(0, Math.min(5, parseInt(n, 10) || 0));
@@ -227,8 +262,8 @@
   $('#btn-refresh').addEventListener('click', () => refresh(false));
 
   // ───────────────────────── 탭 라우팅 ─────────────────────────
-  const TABS = { home: renderHome, notice: renderNotice, resolve: renderResolve, calendar: renderCalendar, prayer: renderPrayer, snack: renderSnack };
-  const FAB_ACTION = { notice: () => openNoticeForm(), resolve: () => openResolveForm(), calendar: () => openEventForm(null, state.calSelected), prayer: () => openPrayerForm(), snack: () => openSnackForm() };
+  const TABS = { home: renderHome, notice: renderNotice, photos: renderPhotos, calendar: renderCalendar, prayer: renderPrayer, snack: renderSnack };
+  const FAB_ACTION = { notice: () => openNoticeForm(), photos: () => openPhotoForm(), calendar: () => openEventForm(null, state.calSelected), prayer: () => openPrayerForm(), snack: () => openSnackForm() };
 
   function onHash() {
     const t = (location.hash || '#home').slice(1);
@@ -252,8 +287,7 @@
     const today = todayStr();
     const reading = rows('통독').find(r => r['날짜'] === today);
     const verse = rows('암송').filter(r => r['시작일'] && r['시작일'] <= today).sort(byDesc('시작일'))[0];
-    const upcoming = rows('일정').filter(r => r['날짜'] >= today && daysBetween(today, r['날짜']) <= 30).sort((a, b) => (a['날짜'] + a['시작']).localeCompare(b['날짜'] + b['시작'])).slice(0, 5);
-    const resolves = rows('결단').filter(r => r['상태'] !== '완료' && r['목표일'] && r['목표일'] >= today).sort(byAsc('목표일')).slice(0, 2);
+    const upcoming = rows('일정').filter(r => endOf(r) >= today && daysBetween(today, r['날짜']) <= 30).sort((a, b) => (a['날짜'] + a['시작']).localeCompare(b['날짜'] + b['시작'])).slice(0, 5);
     const att = CFG.ATTENDANCE_URL;
 
     $('#main').innerHTML = `
@@ -280,16 +314,14 @@
       <div class="section-label">다가오는 일정</div>
       <div class="card">
         ${upcoming.length ? upcoming.map(ev => {
-          const d = parseYmd(ev['날짜']); const isToday = ev['날짜'] === today;
+          const d = parseYmd(ev['날짜']); const isToday = covers(ev, today);
           return `<div class="event-line">
-            <div class="date ${isToday ? 'today' : ''}"><b>${d.getDate()}</b><span>${isToday ? '오늘' : (d.getMonth() + 1) + '월 ' + DOW[d.getDay()]}</span></div>
+            <div class="date ${isToday ? 'today' : ''}"><b>${d.getDate()}</b><span>${isToday ? (nights(ev) ? '진행 중' : '오늘') : (d.getMonth() + 1) + '월 ' + DOW[d.getDay()]}</span></div>
             <div class="what"><div class="t">${esc(ev['제목'])} <span class="badge ${kindClass(ev['종류'])}">${esc(ev['종류'] || '기타')}</span></div>
-            <div class="s">${[ev['시작'] && (ev['시작'] + (ev['종료'] ? '–' + ev['종료'] : '')), ev['장소']].filter(Boolean).map(esc).join(' · ')}</div></div>
+            <div class="s">${[spanLabel(ev), ev['시작'] && (ev['시작'] + (ev['종료'] ? '–' + ev['종료'] : '')), ev['장소']].filter(Boolean).map(esc).join(' · ')}</div></div>
           </div>`; }).join('') : `<div class="muted" style="text-align:center;padding:8px 0">예정된 일정이 없어요</div>`}
       </div>
 
-      ${resolves.length ? `<div class="section-label">진행 중 결단</div>` + resolves.map(r => `
-        <div class="card row"><div class="grow"><div class="title">${esc(r['제목'])}</div><div class="meta">${fmtKo(r['목표일'])}까지</div></div><div class="dday-chip">${dday(r['목표일'])}</div></div>`).join('') : ''}
     `;
     $('[data-act=verse]', $('#main')).onclick = () => openVerseForm(verse);
     $('[data-act=reading]', $('#main')).onclick = () => openReadingForm(reading);
@@ -351,51 +383,110 @@
     });
   }
 
-  // ───────────────────────── ③ 결단 ─────────────────────────
-  function renderResolve() {
-    const today = todayStr();
-    const all = rows('결단');
-    const active = all.filter(r => r['상태'] !== '완료').sort(byAsc('목표일'));
-    const done = all.filter(r => r['상태'] === '완료').sort(byDesc('목표일'));
-    const card = r => {
-      const n = daysBetween(today, r['목표일']);
-      const cls = isNaN(n) ? '' : n < 0 ? 'past' : n === 0 ? 'today' : '';
-      return `<div class="card resolve-card" data-id="${r.id}">
-        <div class="dday ${cls}">${r['상태'] === '완료' ? '완료' : (dday(r['목표일']) || '—')}<small>${fmtShort(r['목표일'])}</small></div>
-        <div class="grow">
-          <div class="title">${esc(r['제목'])}</div>
-          ${r['내용'] ? `<div class="body">${esc(r['내용'])}</div>` : ''}
-          <div class="meta">${r['작성자'] ? `<span>${esc(r['작성자'])}</span>` : ''}<span>${fmtKo(r['목표일'])}까지</span></div>
-          <div class="card-actions">
-            ${r['상태'] === '완료' ? `<button class="btn-sm" data-reopen>다시 진행</button>` : `<button class="btn-sm primary" data-done>완료</button>`}
-            <button class="btn-sm" data-edit>수정</button><button class="btn-sm danger" data-del>삭제</button>
-          </div>
-        </div></div>`;
-    };
-    $('#main').innerHTML = `<div class="page-title">결단 <small>진행 중 ${active.length}개</small></div>` +
-      (active.length ? active.map(card).join('') : `<div class="empty">진행 중인 결단이 없어요.<br>+ 로 결단과 목표일을 적어보세요.</div>`) +
-      (done.length ? `<details class="fold"><summary>완료한 결단 ${done.length}개</summary>${done.map(card).join('')}</details>` : '');
+  // ───────────────────────── ③ 사진첩 ─────────────────────────
+  function photoIds(p) { return String(p['파일IDs'] || '').split(',').map(x => x.trim()).filter(Boolean); }
+
+  function renderPhotos() {
+    const list = rows('사진첩').slice().sort(byDesc('작성일시'));
+    $('#main').innerHTML = `<div class="page-title">사진첩 <small>${list.length}개 게시글</small></div>` +
+      (list.length ? list.map(p => {
+        const ids = photoIds(p);
+        const shown = ids.slice(0, 6);
+        const cls = ids.length === 1 ? 'one' : ids.length === 2 || ids.length === 4 ? 'two' : '';
+        return `<div class="card photo-card" data-id="${p.id}">
+          ${p['설명'] ? `<div class="caption">${esc(p['설명'])}</div>` : ''}
+          <div class="photo-grid ${cls}">${shown.map((id, i) => `<button data-view="${i}"><img src="${esc(photoUrl(id, 400))}" alt="" loading="lazy">${i === 5 && ids.length > 6 ? `<span class="more">+${ids.length - 6}</span>` : ''}</button>`).join('')}</div>
+          <div class="meta"><span>${esc((p['작성일시'] || '').slice(0, 10))}</span>${p['작성자'] ? `<span>${esc(p['작성자'])}</span>` : ''}<span>${ids.length}장</span></div>
+          <div class="card-actions"><button class="btn-sm" data-edit>설명 수정</button><button class="btn-sm danger" data-del>삭제</button></div>
+        </div>`; }).join('') : `<div class="empty">아직 사진이 없어요.<br>+ 로 다락방 사진을 올려보세요.</div>`);
     $$('.card[data-id]', $('#main')).forEach(el => {
-      const r = all.find(x => x.id === el.dataset.id);
+      const p = list.find(x => x.id === el.dataset.id);
       el.addEventListener('click', e => {
-        if (e.target.closest('[data-done]')) return quickSave('결단', { id: r.id, '상태': '완료' }, '완료 처리했어요');
-        if (e.target.closest('[data-reopen]')) return quickSave('결단', { id: r.id, '상태': '진행' }, '다시 진행 중이에요');
-        if (e.target.closest('[data-edit]')) return openResolveForm(r);
-        if (e.target.closest('[data-del]')) return confirmDelete('결단', r.id, '이 결단을 삭제할까요?');
+        const v = e.target.closest('[data-view]');
+        if (v) return openViewer(photoIds(p), +v.dataset.view, p['설명']);
+        if (e.target.closest('[data-edit]')) return openPhotoForm(p);
+        if (e.target.closest('[data-del]')) return confirmDelete('사진첩', p.id, '이 게시글과 사진 ' + photoIds(p).length + '장을 삭제할까요?');
       });
     });
   }
-  function openResolveForm(cur) {
+
+  function openPhotoForm(cur) {
     openForm({
-      title: cur ? '결단 수정' : '새 결단', sheet: '결단', initial: cur || { '상태': '진행' },
+      title: cur ? '설명 수정' : '사진 올리기', sheet: '사진첩', initial: cur || {},
       fields: [
-        { key: '제목', label: '결단', type: 'text', required: true, placeholder: '예: 신약 1독 완주' },
-        { key: '목표일', label: '목표일', type: 'date', required: true },
-        { key: '내용', label: '내용', type: 'textarea', placeholder: '선택' },
-        { key: '작성자', label: '작성자', type: 'text', placeholder: '선택' },
+        ...(cur ? [] : [{ key: '_files', label: '사진 (최대 ' + MAX_PHOTOS + '장)', type: 'files', required: true }]),
+        { key: '설명', label: '설명', type: 'textarea', placeholder: '선택' },
+        { key: '작성자', label: '올린 사람', type: 'text', placeholder: '선택' },
       ],
+      // 저장 직전: 사진을 줄여서 하나씩 업로드하고 파일 ID 목록을 행에 넣음
+      beforeSave: async (row, form, progress) => {
+        if (cur) return row;
+        const files = Array.from(form.elements['_files'].files || []).slice(0, MAX_PHOTOS);
+        if (!files.length) throw new Error('사진을 선택해 주세요.');
+        const ids = [];
+        for (let i = 0; i < files.length; i++) {
+          progress(`${i + 1} / ${files.length}장 올리는 중…`);
+          const b64 = await shrinkImage(files[i]);
+          const r = await api.upload('darakbang-' + Date.now() + '-' + (i + 1) + '.jpg', 'image/jpeg', b64);
+          if (!r.ok || !r.fileId) throw new Error(r.error || '업로드 실패');
+          ids.push(r.fileId);
+        }
+        progress('게시글 저장 중…');
+        row['파일IDs'] = ids.join(',');
+        return row;
+      },
     });
   }
+
+  // 사진을 긴 변 PHOTO_MAX_PX 이하 JPEG로 줄여 base64 반환
+  function shrinkImage(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, PHOTO_MAX_PX / Math.max(img.naturalWidth, img.naturalHeight));
+        const w = Math.round(img.naturalWidth * scale), h = Math.round(img.naturalHeight * scale);
+        const c = document.createElement('canvas'); c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+        resolve(c.toDataURL('image/jpeg', PHOTO_QUALITY).split(',')[1]);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('이미지를 읽을 수 없어요: ' + file.name)); };
+      img.src = url;
+    });
+  }
+
+  // ── 크게 보기
+  function openViewer(ids, index, caption) {
+    state.viewer = { ids, index, caption };
+    $('#viewer').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    paintViewer();
+  }
+  function paintViewer() {
+    const v = state.viewer; if (!v) return;
+    $('#viewer-img').src = photoUrl(v.ids[v.index], 1600);
+    $('#viewer-count').textContent = (v.index + 1) + ' / ' + v.ids.length;
+    $('#viewer-cap').textContent = v.caption || '';
+  }
+  function closeViewer() { state.viewer = null; $('#viewer').classList.add('hidden'); $('#viewer-img').src = ''; document.body.style.overflow = ''; }
+  $('#viewer-close').onclick = closeViewer;
+  $('#viewer-stage').addEventListener('click', e => {
+    const v = state.viewer; if (!v) return;
+    const x = e.clientX / window.innerWidth;
+    if (x < 0.3) v.index = (v.index - 1 + v.ids.length) % v.ids.length;
+    else if (x > 0.7) v.index = (v.index + 1) % v.ids.length;
+    else return closeViewer();
+    paintViewer();
+  });
+  let touchX = null;
+  $('#viewer-stage').addEventListener('touchstart', e => { touchX = e.touches[0].clientX; }, { passive: true });
+  $('#viewer-stage').addEventListener('touchend', e => {
+    const v = state.viewer; if (!v || touchX === null) return;
+    const dx = e.changedTouches[0].clientX - touchX; touchX = null;
+    if (Math.abs(dx) < 40) return;
+    v.index = (v.index + (dx < 0 ? 1 : -1) + v.ids.length) % v.ids.length; paintViewer();
+  }, { passive: true });
 
   // ───────────────────────── ④ 캘린더 ─────────────────────────
   function renderCalendar() {
@@ -405,7 +496,11 @@
     const today = todayStr();
     const events = rows('일정');
     const byDate = {};
-    events.forEach(e => { (byDate[e['날짜']] = byDate[e['날짜']] || []).push(e); });
+    events.forEach(e => {
+      const d0 = parseYmd(e['날짜']), d1 = parseYmd(endOf(e));
+      if (!d0) return;
+      for (let x = new Date(d0); x <= (d1 || d0); x.setDate(x.getDate() + 1)) { const k = ymd(x); (byDate[k] = byDate[k] || []).push(e); }
+    });
 
     let cells = '';
     const total = Math.ceil((startDow + daysInMonth) / 7) * 7;
@@ -425,7 +520,7 @@
       <div class="section-label">${fmtKo(state.calSelected)}${state.calSelected === today ? ' · 오늘' : ''}</div>
       ${sel.length ? sel.map(ev => `<div class="card" data-id="${ev.id}">
           <div class="title">${esc(ev['제목'])} <span class="badge ${kindClass(ev['종류'])}">${esc(ev['종류'] || '기타')}</span></div>
-          <div class="meta">${ev['시작'] ? `<span>${esc(ev['시작'])}${ev['종료'] ? '–' + esc(ev['종료']) : ''}</span>` : ''}${ev['장소'] ? `<span>${esc(ev['장소'])}</span>` : ''}</div>
+          <div class="meta">${spanLabel(ev) ? `<span>${esc(spanLabel(ev))}</span>` : ''}${ev['시작'] ? `<span>${esc(ev['시작'])}${ev['종료'] ? '–' + esc(ev['종료']) : ''}</span>` : ''}${ev['장소'] ? `<span>${esc(ev['장소'])}</span>` : ''}</div>
           ${ev['메모'] ? `<div class="body">${esc(ev['메모'])}</div>` : ''}
           <div class="card-actions"><button class="btn-sm" data-edit>수정</button><button class="btn-sm danger" data-del>삭제</button></div>
         </div>`).join('') : `<div class="empty">이 날은 일정이 없어요. + 로 추가할 수 있어요.</div>`}
@@ -449,7 +544,7 @@
       title: cur ? '일정 수정' : '새 일정', sheet: '일정', initial: cur || { '날짜': dateDefault || todayStr(), '종류': '순모임' },
       fields: [
         { key: '제목', label: '제목', type: 'text', required: true, placeholder: '예: 순모임' },
-        { key: '날짜', label: '날짜', type: 'date', required: true },
+        { key: '_days', label: '기간', type: 'daterange', required: true, help: '하루 일정이면 종료일은 비워두세요' },
         { key: '_time', label: '시간', type: 'timerange' },
         { key: '종류', label: '종류', type: 'select', options: EVENT_KINDS },
         { key: '장소', label: '장소', type: 'text', placeholder: '선택' },
@@ -579,6 +674,23 @@
       $$('button', wrap).forEach(b => b.onclick = e => { e.preventDefault(); hidden.value = b.dataset.v; paint(); });
       paint();
     });
+    // 기간 입력 시 "n박 n+1일" 안내
+    const dr = $('input[name=종료일]', $('#sheet-form'));
+    if (dr) {
+      const a = $('input[name=날짜]', $('#sheet-form')), h = $('.range-help', $('#sheet-form'));
+      const paintRange = () => { const n = a.value && dr.value ? daysBetween(a.value, dr.value) : 0; h.textContent = n > 0 ? `${n}박 ${n + 1}일` : (n < 0 ? '종료일이 시작일보다 앞서 있어요' : ''); };
+      a.onchange = dr.onchange = paintRange; paintRange();
+    }
+    // 사진 선택 시 미리보기
+    $$('input[type=file]', $('#sheet-form')).forEach(inp => {
+      inp.onchange = () => {
+        const box = $('.file-previews', inp.closest('.file-pick'));
+        const files = Array.from(inp.files || []);
+        box.innerHTML = files.slice(0, MAX_PHOTOS).map(f => `<div><img src="${URL.createObjectURL(f)}" alt=""></div>`).join('');
+        $('label.pick span', inp.closest('.file-pick')).textContent = files.length ? `${Math.min(files.length, MAX_PHOTOS)}장 선택됨 · 다시 선택` : '사진 선택';
+        if (files.length > MAX_PHOTOS) toast('최대 ' + MAX_PHOTOS + '장까지만 올라가요');
+      };
+    });
     // 카테고리 '기타' 선택 시 직접 입력
     $$('[data-other-select]', $('#sheet-form')).forEach(sel => {
       const inp = $('[data-other-input]', sel.parentElement);
@@ -610,16 +722,25 @@
           <input type="text" name="${f.key}__other" data-other-input class="hidden" placeholder="직접 입력" value="${known ? '' : esc(v)}"></div>${help}</div>`;
       }
       case 'stars': return `<div class="field">${lab}<input type="hidden" name="${f.key}" value="${esc(v || '3')}"><div class="star-input">${[1, 2, 3, 4, 5].map(n => `<button type="button" data-v="${n}">★</button>`).join('')}</div>${help}</div>`;
+      case 'files': return `<div class="field">${lab}<div class="file-pick"><label class="pick"><span>사진 선택</span><input type="file" name="${f.key}" accept="image/*" multiple></label><div class="file-previews"></div><div class="upload-progress"></div></div>${help}</div>`;
       case 'timerange': return `<div class="field">${lab}<div class="inline"><input type="time" name="시작" value="${esc(init['시작'] || '')}"><input type="time" name="종료" value="${esc(init['종료'] || '')}"></div>${help}</div>`;
+      case 'daterange': return `<div class="field">${lab}<div class="inline"><input type="date" name="날짜" value="${esc(init['날짜'] || '')}"><input type="date" name="종료일" value="${esc(init['종료일'] && init['종료일'] > init['날짜'] ? init['종료일'] : '')}" placeholder="종료일"></div><div class="help range-help"></div>${help}</div>`;
       default: return `<div class="field">${lab}<input type="text" name="${f.key}" value="${esc(v)}" placeholder="${esc(f.placeholder || '')}">${help}</div>`;
     }
   }
   function readForm() {
     const spec = formSpec, form = $('#sheet-form');
     const row = Object.assign({}, spec.initial && spec.initial.id ? { id: spec.initial.id } : {});
-    Object.keys(spec.initial || {}).forEach(k => { if (row[k] === undefined && !spec.fields.some(f => f.key === k || f.type === 'timerange' && (k === '시작' || k === '종료'))) row[k] = spec.initial[k]; });
+    Object.keys(spec.initial || {}).forEach(k => { if (row[k] === undefined && !spec.fields.some(f => f.key === k || f.type === 'timerange' && (k === '시작' || k === '종료') || f.type === 'daterange' && (k === '날짜' || k === '종료일'))) row[k] = spec.initial[k]; });
     for (const f of spec.fields) {
       if (f.type === 'timerange') { row['시작'] = form.elements['시작'].value; row['종료'] = form.elements['종료'].value; continue; }
+      if (f.type === 'daterange') {
+        const a = form.elements['날짜'].value, b = form.elements['종료일'].value;
+        if (!a) throw new Error('시작 날짜를 입력해 주세요.');
+        if (b && b < a) throw new Error('종료일이 시작일보다 앞설 수 없어요.');
+        row['날짜'] = a; row['종료일'] = b && b > a ? b : ''; continue;
+      }
+      if (f.type === 'files') { if (f.required && !(form.elements[f.key].files || []).length) throw new Error('사진을 선택해 주세요.'); continue; }
       const el = form.elements[f.key];
       let val;
       if (f.type === 'check') val = el.checked ? 'Y' : '';
@@ -638,7 +759,11 @@
     let row;
     try { row = readForm(); } catch (e) { $('#sheet-error').textContent = e.message; return; }
     btn.disabled = true; btn.textContent = '저장 중…'; $('#sheet-error').textContent = '';
+    const spec = formSpec;
+    const progress = msg => { const el = $('.upload-progress', $('#sheet-form')); if (el) el.textContent = msg; btn.textContent = msg || '저장 중…'; };
     try {
+      if (spec.beforeSave) row = await spec.beforeSave(row, $('#sheet-form'), progress);
+      if (formSpec !== spec) return; // 업로드 중 폼이 닫힘
       const saved = await saveRow(formSpec.sheet, row);
       if (formSpec.after) formSpec.after(saved || row);
       const msg = formSpec.toast || '저장했어요';
