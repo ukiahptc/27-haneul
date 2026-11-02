@@ -49,8 +49,13 @@
   }
   function endOf(ev) { return ev['종료일'] && ev['종료일'] > ev['날짜'] ? ev['종료일'] : ev['날짜']; }
   function nights(ev) { const n = daysBetween(ev['날짜'], endOf(ev)); return n > 0 ? n : 0; }
-  function spanLabel(ev) { const n = nights(ev); return n ? `${fmtShort(ev['날짜'])}–${fmtShort(endOf(ev))} · ${n}박 ${n + 1}일` : ''; }
   function covers(ev, day) { return ev['날짜'] <= day && day <= endOf(ev); }
+  // "11.25 09:00 – 11.27 15:00 · 2박 3일" / 하루면 "09:00–11:00"
+  function whenLabel(ev) {
+    const n = nights(ev);
+    if (n) return `${fmtShort(ev['날짜'])}${ev['시작'] ? ' ' + ev['시작'] : ''} – ${fmtShort(endOf(ev))}${ev['종료'] ? ' ' + ev['종료'] : ''} · ${n}박 ${n + 1}일`;
+    return ev['시작'] ? ev['시작'] + (ev['종료'] ? '–' + ev['종료'] : '') : '';
+  }
   function byDesc(key) { return (a, b) => String(b[key]).localeCompare(String(a[key])); }
   function byAsc(key) { return (a, b) => String(a[key]).localeCompare(String(b[key])); }
 
@@ -318,7 +323,7 @@
           return `<div class="event-line">
             <div class="date ${isToday ? 'today' : ''}"><b>${d.getDate()}</b><span>${isToday ? (nights(ev) ? '진행 중' : '오늘') : (d.getMonth() + 1) + '월 ' + DOW[d.getDay()]}</span></div>
             <div class="what"><div class="t">${esc(ev['제목'])} <span class="badge ${kindClass(ev['종류'])}">${esc(ev['종류'] || '기타')}</span></div>
-            <div class="s">${[spanLabel(ev), ev['시작'] && (ev['시작'] + (ev['종료'] ? '–' + ev['종료'] : '')), ev['장소']].filter(Boolean).map(esc).join(' · ')}</div></div>
+            <div class="s">${[whenLabel(ev), ev['장소']].filter(Boolean).map(esc).join(' · ')}</div></div>
           </div>`; }).join('') : `<div class="muted" style="text-align:center;padding:8px 0">예정된 일정이 없어요</div>`}
       </div>
 
@@ -520,7 +525,7 @@
       <div class="section-label">${fmtKo(state.calSelected)}${state.calSelected === today ? ' · 오늘' : ''}</div>
       ${sel.length ? sel.map(ev => `<div class="card" data-id="${ev.id}">
           <div class="title">${esc(ev['제목'])} <span class="badge ${kindClass(ev['종류'])}">${esc(ev['종류'] || '기타')}</span></div>
-          <div class="meta">${spanLabel(ev) ? `<span>${esc(spanLabel(ev))}</span>` : ''}${ev['시작'] ? `<span>${esc(ev['시작'])}${ev['종료'] ? '–' + esc(ev['종료']) : ''}</span>` : ''}${ev['장소'] ? `<span>${esc(ev['장소'])}</span>` : ''}</div>
+          <div class="meta">${whenLabel(ev) ? `<span>${esc(whenLabel(ev))}</span>` : ''}${ev['장소'] ? `<span>${esc(ev['장소'])}</span>` : ''}</div>
           ${ev['메모'] ? `<div class="body">${esc(ev['메모'])}</div>` : ''}
           <div class="card-actions"><button class="btn-sm" data-edit>수정</button><button class="btn-sm danger" data-del>삭제</button></div>
         </div>`).join('') : `<div class="empty">이 날은 일정이 없어요. + 로 추가할 수 있어요.</div>`}
@@ -544,8 +549,8 @@
       title: cur ? '일정 수정' : '새 일정', sheet: '일정', initial: cur || { '날짜': dateDefault || todayStr(), '종류': '순모임' },
       fields: [
         { key: '제목', label: '제목', type: 'text', required: true, placeholder: '예: 순모임' },
-        { key: '_days', label: '기간', type: 'daterange', required: true, help: '하루 일정이면 종료일은 비워두세요' },
-        { key: '_time', label: '시간', type: 'timerange' },
+        { key: '_start', label: '시작', type: 'datetime', dateName: '날짜', timeName: '시작', required: true },
+        { key: '_end', label: '종료', type: 'datetime', dateName: '종료일', timeName: '종료', help: '하루 일정이면 종료 날짜는 비워두세요' },
         { key: '종류', label: '종류', type: 'select', options: EVENT_KINDS },
         { key: '장소', label: '장소', type: 'text', placeholder: '선택' },
         { key: '메모', label: '메모', type: 'textarea', placeholder: '선택' },
@@ -724,21 +729,31 @@
       case 'stars': return `<div class="field">${lab}<input type="hidden" name="${f.key}" value="${esc(v || '3')}"><div class="star-input">${[1, 2, 3, 4, 5].map(n => `<button type="button" data-v="${n}">★</button>`).join('')}</div>${help}</div>`;
       case 'files': return `<div class="field">${lab}<div class="file-pick"><label class="pick"><span>사진 선택</span><input type="file" name="${f.key}" accept="image/*" multiple></label><div class="file-previews"></div><div class="upload-progress"></div></div>${help}</div>`;
       case 'timerange': return `<div class="field">${lab}<div class="inline"><input type="time" name="시작" value="${esc(init['시작'] || '')}"><input type="time" name="종료" value="${esc(init['종료'] || '')}"></div>${help}</div>`;
-      case 'daterange': return `<div class="field">${lab}<div class="inline"><input type="date" name="날짜" value="${esc(init['날짜'] || '')}"><input type="date" name="종료일" value="${esc(init['종료일'] && init['종료일'] > init['날짜'] ? init['종료일'] : '')}" placeholder="종료일"></div><div class="help range-help"></div>${help}</div>`;
+      case 'datetime': {
+        const dv = f.dateName === '종료일' ? (init['종료일'] && init['종료일'] > init['날짜'] ? init['종료일'] : '') : (init[f.dateName] || '');
+        return `<div class="field">${lab}<div class="inline"><input type="date" name="${f.dateName}" value="${esc(dv)}" style="flex:3"><input type="time" name="${f.timeName}" value="${esc(init[f.timeName] || '')}" style="flex:2"></div>${f.dateName === '종료일' ? '<div class="help range-help"></div>' : ''}${help}</div>`;
+      }
       default: return `<div class="field">${lab}<input type="text" name="${f.key}" value="${esc(v)}" placeholder="${esc(f.placeholder || '')}">${help}</div>`;
     }
   }
   function readForm() {
     const spec = formSpec, form = $('#sheet-form');
     const row = Object.assign({}, spec.initial && spec.initial.id ? { id: spec.initial.id } : {});
-    Object.keys(spec.initial || {}).forEach(k => { if (row[k] === undefined && !spec.fields.some(f => f.key === k || f.type === 'timerange' && (k === '시작' || k === '종료') || f.type === 'daterange' && (k === '날짜' || k === '종료일'))) row[k] = spec.initial[k]; });
+    Object.keys(spec.initial || {}).forEach(k => { if (row[k] === undefined && !spec.fields.some(f => f.key === k || f.type === 'timerange' && (k === '시작' || k === '종료') || f.type === 'datetime' && (k === f.dateName || k === f.timeName))) row[k] = spec.initial[k]; });
     for (const f of spec.fields) {
       if (f.type === 'timerange') { row['시작'] = form.elements['시작'].value; row['종료'] = form.elements['종료'].value; continue; }
-      if (f.type === 'daterange') {
-        const a = form.elements['날짜'].value, b = form.elements['종료일'].value;
-        if (!a) throw new Error('시작 날짜를 입력해 주세요.');
-        if (b && b < a) throw new Error('종료일이 시작일보다 앞설 수 없어요.');
-        row['날짜'] = a; row['종료일'] = b && b > a ? b : ''; continue;
+      if (f.type === 'datetime') {
+        const d = form.elements[f.dateName].value, t = form.elements[f.timeName].value;
+        if (f.dateName === '날짜') {
+          if (!d) throw new Error('시작 날짜를 입력해 주세요.');
+          row['날짜'] = d; row['시작'] = t;
+        } else {
+          const a = row['날짜'];
+          if (d && d < a) throw new Error('종료가 시작보다 앞설 수 없어요.');
+          if ((!d || d === a) && t && row['시작'] && t < row['시작']) throw new Error('종료 시간이 시작 시간보다 앞서 있어요.');
+          row['종료일'] = d && d > a ? d : ''; row['종료'] = t;
+        }
+        continue;
       }
       if (f.type === 'files') { if (f.required && !(form.elements[f.key].files || []).length) throw new Error('사진을 선택해 주세요.'); continue; }
       const el = form.elements[f.key];
