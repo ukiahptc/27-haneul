@@ -137,3 +137,11 @@ apps-script/
 - **열 구조 자동 이전**: `setup()`이 기존 탭의 제목 행이 SCHEMA와 다르면 열 이름 기준으로 데이터를 새 순서로 옮김.
 - **글꼴**: Pretendard/Noto Serif KR → KoPub World 돋움(본문 400·700) / 바탕(제목 400·700). jsDelivr `font-kopubworld@1.0.3` woff2 직접 참조. 서브셋 없이 원본이라 첫 방문 시 약 10MB 내려받음(이후 캐시).
 - **미리보기 스위치**: 주소에 `?preview=1`을 붙이면 API 연결과 무관하게 미리보기 모드.
+
+### 2026-11-02 (v3)
+
+- **테마 v3**: Cafe24 써라운드(700)/써라운드 에어(400) 글꼴(jsDelivr noonfonts), 모서리 20px 카드·그림자, 파스텔 톤, 선 아이콘 세트(`I` 객체, `ic()`/`bubble()` 도우미). 빈 화면·페이지 제목·폼 제목·메타에 아이콘.
+- **일정 입력**: 시작 [날짜][시간] / 종료 [날짜][시간]. 시트 열은 v2와 동일.
+- **넓은 화면**: 700px 이상에서 탭 바·+ 버튼을 본문 폭(640px)에 맞춤.
+- **도메인**: `jwpfig.site` (가비아 DNS → GitHub Pages A 레코드 4개 + www CNAME, 저장소 `CNAME` 파일, Enforce HTTPS). 루트 `index.html`은 `/darakbang/`으로 자동 이동. 그룹 페이지는 `/group/` 유지.
+- **홈 화면 아이콘**: `darakbang/icons/icon-{180,192,512}.png` (무화과 로고, 크림 배경) + `manifest.webmanifest` + `apple-touch-icon`.
