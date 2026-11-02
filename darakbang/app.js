@@ -10,6 +10,29 @@
   const EVENT_KINDS = ['순모임', '행사', '기타'];
   const DOW = ['일', '월', '화', '수', '목', '금', '토'];
 
+  // ── 아이콘 (24x24 선 아이콘)
+  const I = {
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+    book: '<path d="M12 6.5C10 5 7 4.5 3 5v13c4-.5 7 0 9 1.5 2-1.5 5-2 9-1.5V5c-4-.5-7 0-9 1.5z"/><path d="M12 6.5v13"/>',
+    sparkle: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/>',
+    clipboard: '<rect x="5" y="4" width="14" height="17" rx="3"/><path d="M9 4.5h6M9 13l2 2 4-4"/>',
+    calendar: '<rect x="3" y="5" width="18" height="16" rx="4"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+    bell: '<path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/>',
+    camera: '<rect x="3" y="7" width="18" height="13" rx="4"/><circle cx="12" cy="13.5" r="3.5"/><path d="M8.5 7l1.5-2.5h4L15.5 7"/>',
+    heart: '<path d="M12 20.5s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 8a4.3 4.3 0 0 1 7.5 2.5c0 5.4-7.5 10-7.5 10z"/>',
+    cookie: '<circle cx="12" cy="12" r="8.5"/><circle cx="9" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="14.5" cy="9" r="1" fill="currentColor" stroke="none"/><circle cx="10.5" cy="14.5" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="14" r="1" fill="currentColor" stroke="none"/>',
+    pin: '<path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2"/>',
+    clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+    user: '<circle cx="12" cy="8.5" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/>',
+    check: '<circle cx="12" cy="12" r="8.5"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/>',
+    pinned: '<path d="M9 4h6l-1 6 3 3v2H7v-2l3-3z"/><path d="M12 15v6"/>',
+    arrow: '<path d="M7 17L17 7"/><path d="M8 7h9v9"/>',
+    image: '<rect x="3" y="5" width="18" height="14" rx="4"/><circle cx="9" cy="10" r="1.6"/><path d="M21 15.5l-4.5-4.5-7 7"/>',
+    link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+  };
+  const ic = (name, cls) => `<svg class="ic ${cls || ''}" viewBox="0 0 24 24" aria-hidden="true">${I[name] || ''}</svg>`;
+  const bubble = (name, tone) => `<span class="ic-bubble ${tone || ''}">${ic(name)}</span>`;
+
   const $ = (s, el) => (el || document).querySelector(s);
   const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -296,14 +319,14 @@
     const att = CFG.ATTENDANCE_URL;
 
     $('#main').innerHTML = `
-      <div class="today-line">${fmtKo(today)}</div>
+      <div class="today-line">${ic('sun')} ${fmtKo(today)}</div>
       <div class="dash-grid">
         <div class="card fig span2">
-          <div class="kicker">오늘 통독</div>
+          <div class="kicker">${bubble('book', 'white')} 오늘 통독</div>
           ${reading ? `<div class="reading">${esc(reading['범위'])}</div>` : `<div class="muted">오늘 통독 범위가 등록되지 않았어요</div>`}
         </div>
         <div class="card span2">
-          <div class="kicker">이번 주 암송</div>
+          <div class="kicker">${bubble('sparkle', 'butter')} 이번 주 암송</div>
           ${verse ? `<div class="verse-ref">${esc(verse['구절'])}</div><div class="verse-text">${esc(verse['본문'])}</div>` : `<div class="muted">암송 구절이 등록되지 않았어요</div>`}
           <div class="card-actions" style="border:0;padding-top:6px;margin-top:4px">
             <button class="btn-sm" data-act="verse">${verse ? '암송 바꾸기' : '암송 등록'}</button>
@@ -311,20 +334,19 @@
           </div>
         </div>
         <a class="link-btn span2 ${att ? '' : 'disabled'}" href="${esc(att || '#')}" target="_blank" rel="noopener">
-          <span>${att ? '출석부 열기' : '출석부 주소가 설정되지 않았어요'}</span>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7"/><path d="M8 7h9v9"/></svg>
+          ${ic('clipboard')}<span>${att ? '출석부 열기' : '출석부 주소가 설정되지 않았어요'}</span>${ic('arrow')}
         </a>
       </div>
 
-      <div class="section-label">다가오는 일정</div>
+      <div class="section-label">${ic('calendar')} 다가오는 일정</div>
       <div class="card">
         ${upcoming.length ? upcoming.map(ev => {
           const d = parseYmd(ev['날짜']); const isToday = covers(ev, today);
           return `<div class="event-line">
             <div class="date ${isToday ? 'today' : ''}"><b>${d.getDate()}</b><span>${isToday ? (nights(ev) ? '진행 중' : '오늘') : (d.getMonth() + 1) + '월 ' + DOW[d.getDay()]}</span></div>
             <div class="what"><div class="t">${esc(ev['제목'])} <span class="badge ${kindClass(ev['종류'])}">${esc(ev['종류'] || '기타')}</span></div>
-            <div class="s">${[whenLabel(ev), ev['장소']].filter(Boolean).map(esc).join(' · ')}</div></div>
-          </div>`; }).join('') : `<div class="muted" style="text-align:center;padding:8px 0">예정된 일정이 없어요</div>`}
+            <div class="s">${[whenLabel(ev) && ic('clock') + ' ' + esc(whenLabel(ev)), ev['장소'] && ic('pin') + ' ' + esc(ev['장소'])].filter(Boolean).join(' &nbsp; ')}</div></div>
+          </div>`; }).join('') : `<div class="muted" style="text-align:center;padding:8px 0">${ic('calendar')} 예정된 일정이 없어요</div>`}
       </div>
 
     `;
@@ -357,15 +379,15 @@
   // ───────────────────────── ② 공지 ─────────────────────────
   function renderNotice() {
     const list = rows('공지').slice().sort((a, b) => (b['고정'] === 'Y') - (a['고정'] === 'Y') || byDesc('작성일시')(a, b));
-    $('#main').innerHTML = `<div class="page-title">공지 <small>${list.length}개</small></div>` +
+    $('#main').innerHTML = `<div class="page-title">${bubble('bell')} 공지 <small>${list.length}개</small></div>` +
       (list.length ? list.map(n => {
         const open = state.openNotice === n.id;
         return `<div class="card" data-id="${n.id}">
-          <div class="row"><div class="grow title">${n['고정'] === 'Y' ? '<span class="badge">고정</span> ' : ''}${esc(n['제목'])}</div></div>
+          <div class="row"><div class="grow title">${n['고정'] === 'Y' ? `<span class="badge">${ic('pinned')}고정</span> ` : ''}${esc(n['제목'])}</div></div>
           ${open ? `<div class="body">${esc(n['내용'])}</div>` : ''}
-          <div class="meta"><span>${esc(n['작성일시'])}</span>${n['작성자'] ? `<span>${esc(n['작성자'])}</span>` : ''}</div>
+          <div class="meta"><span>${ic('clock')}${esc(n['작성일시'])}</span>${n['작성자'] ? `<span>${ic('user')}${esc(n['작성자'])}</span>` : ''}</div>
           ${open ? `<div class="card-actions"><button class="btn-sm" data-edit>수정</button><button class="btn-sm danger" data-del>삭제</button></div>` : ''}
-        </div>`; }).join('') : `<div class="empty">아직 공지가 없어요.<br>오른쪽 아래 + 로 첫 공지를 올려보세요.</div>`);
+        </div>`; }).join('') : `<div class="empty">${bubble('bell')}아직 공지가 없어요.<br>오른쪽 아래 + 로 첫 공지를 올려보세요.</div>`);
     $$('.card[data-id]', $('#main')).forEach(card => {
       const n = list.find(x => x.id === card.dataset.id);
       card.addEventListener('click', e => {
@@ -393,7 +415,7 @@
 
   function renderPhotos() {
     const list = rows('사진첩').slice().sort(byDesc('작성일시'));
-    $('#main').innerHTML = `<div class="page-title">사진첩 <small>${list.length}개 게시글</small></div>` +
+    $('#main').innerHTML = `<div class="page-title">${bubble('camera', 'flesh')} 사진첩 <small>${list.length}개 게시글</small></div>` +
       (list.length ? list.map(p => {
         const ids = photoIds(p);
         const shown = ids.slice(0, 6);
@@ -401,9 +423,9 @@
         return `<div class="card photo-card" data-id="${p.id}">
           ${p['설명'] ? `<div class="caption">${esc(p['설명'])}</div>` : ''}
           <div class="photo-grid ${cls}">${shown.map((id, i) => `<button data-view="${i}"><img src="${esc(photoUrl(id, 400))}" alt="" loading="lazy">${i === 5 && ids.length > 6 ? `<span class="more">+${ids.length - 6}</span>` : ''}</button>`).join('')}</div>
-          <div class="meta"><span>${esc((p['작성일시'] || '').slice(0, 10))}</span>${p['작성자'] ? `<span>${esc(p['작성자'])}</span>` : ''}<span>${ids.length}장</span></div>
+          <div class="meta"><span>${ic('clock')}${esc((p['작성일시'] || '').slice(0, 10))}</span>${p['작성자'] ? `<span>${ic('user')}${esc(p['작성자'])}</span>` : ''}<span>${ic('image')}${ids.length}장</span></div>
           <div class="card-actions"><button class="btn-sm" data-edit>설명 수정</button><button class="btn-sm danger" data-del>삭제</button></div>
-        </div>`; }).join('') : `<div class="empty">아직 사진이 없어요.<br>+ 로 다락방 사진을 올려보세요.</div>`);
+        </div>`; }).join('') : `<div class="empty">${bubble('image', 'flesh')}아직 사진이 없어요.<br>+ 로 다락방 사진을 올려보세요.</div>`);
     $$('.card[data-id]', $('#main')).forEach(el => {
       const p = list.find(x => x.id === el.dataset.id);
       el.addEventListener('click', e => {
@@ -520,15 +542,15 @@
 
     $('#main').innerHTML = `
       <div class="cal-head"><button data-nav="-1" aria-label="이전 달">‹</button><div class="month">${y}년 ${mo + 1}월</div><button data-nav="1" aria-label="다음 달">›</button></div>
-      <div class="cal-grid">${DOW.map(d => `<div class="dow">${d}</div>`).join('')}${cells}</div>
-      <div class="cal-legend"><span><i style="background:var(--fig)"></i>순모임</span><span><i style="background:var(--leaf)"></i>행사</span><span><i style="background:var(--ink-3)"></i>기타</span></div>
-      <div class="section-label">${fmtKo(state.calSelected)}${state.calSelected === today ? ' · 오늘' : ''}</div>
+      <div class="cal-wrap"><div class="cal-grid">${DOW.map(d => `<div class="dow">${d}</div>`).join('')}${cells}</div>
+      <div class="cal-legend"><span><i style="background:var(--fig)"></i>순모임</span><span><i style="background:var(--leaf)"></i>행사</span><span><i style="background:var(--ink-3)"></i>기타</span></div></div>
+      <div class="section-label">${ic('calendar')} ${fmtKo(state.calSelected)}${state.calSelected === today ? ' · 오늘' : ''}</div>
       ${sel.length ? sel.map(ev => `<div class="card" data-id="${ev.id}">
           <div class="title">${esc(ev['제목'])} <span class="badge ${kindClass(ev['종류'])}">${esc(ev['종류'] || '기타')}</span></div>
-          <div class="meta">${whenLabel(ev) ? `<span>${esc(whenLabel(ev))}</span>` : ''}${ev['장소'] ? `<span>${esc(ev['장소'])}</span>` : ''}</div>
+          <div class="meta">${whenLabel(ev) ? `<span>${ic('clock')}${esc(whenLabel(ev))}</span>` : ''}${ev['장소'] ? `<span>${ic('pin')}${esc(ev['장소'])}</span>` : ''}</div>
           ${ev['메모'] ? `<div class="body">${esc(ev['메모'])}</div>` : ''}
           <div class="card-actions"><button class="btn-sm" data-edit>수정</button><button class="btn-sm danger" data-del>삭제</button></div>
-        </div>`).join('') : `<div class="empty">이 날은 일정이 없어요. + 로 추가할 수 있어요.</div>`}
+        </div>`).join('') : `<div class="empty">${bubble('calendar', 'leaf')}이 날은 일정이 없어요.<br>+ 로 추가할 수 있어요.</div>`}
     `;
     $$('[data-nav]', $('#main')).forEach(b => b.onclick = () => { state.calMonth = new Date(y, mo + +b.dataset.nav, 1); renderCalendar(); });
     $$('.cal-cell', $('#main')).forEach(b => b.onclick = () => {
@@ -565,16 +587,16 @@
     const open = all.filter(p => p['응답'] !== 'Y');
     const done = all.filter(p => p['응답'] === 'Y');
     const card = p => `<div class="card prayer-card" data-id="${p.id}">
-        <div class="name">${esc(p['이름'] || '익명')}</div>
+        <div class="name">${ic('user')}${esc(p['이름'] || '익명')}</div>
         <div class="body">${esc(p['내용'])}</div>
-        ${p['응답'] === 'Y' ? `<div class="answer"><b>응답</b>${esc(p['응답메모'] || '응답되었어요')}</div>` : ''}
+        ${p['응답'] === 'Y' ? `<div class="answer"><b>${ic('check')}응답</b>${esc(p['응답메모'] || '응답되었어요')}</div>` : ''}
         <div class="meta"><span>${esc((p['작성일시'] || '').slice(0, 10))}</span></div>
         <div class="card-actions">
           ${p['응답'] === 'Y' ? '' : `<button class="btn-sm primary" data-answer>응답됨</button>`}
           <button class="btn-sm" data-edit>수정</button><button class="btn-sm danger" data-del>삭제</button>
         </div></div>`;
-    $('#main').innerHTML = `<div class="page-title">기도제목 <small>${open.length}개</small></div>` +
-      (open.length ? open.map(card).join('') : `<div class="empty">나눈 기도제목이 없어요.<br>이름은 안 적어도 괜찮아요.</div>`) +
+    $('#main').innerHTML = `<div class="page-title">${bubble('heart', 'flesh')} 기도제목 <small>${open.length}개</small></div>` +
+      (open.length ? open.map(card).join('') : `<div class="empty">${bubble('heart', 'flesh')}나눈 기도제목이 없어요.<br>이름은 안 적어도 괜찮아요.</div>`) +
       (done.length ? `<details class="fold"><summary>응답된 기도 ${done.length}개</summary>${done.map(card).join('')}</details>` : '');
     $$('.card[data-id]', $('#main')).forEach(el => {
       const p = all.find(x => x.id === el.dataset.id);
@@ -608,19 +630,19 @@
     const cats = ['전체'].concat(SNACK_CATS.filter(c => c !== '기타'), all.map(s => s['카테고리']).filter(c => c && !SNACK_CATS.includes(c)).filter((v, i, a) => a.indexOf(v) === i), ['기타']);
     let list = state.snackCat === '전체' ? all.slice() : all.filter(s => (s['카테고리'] || '기타') === state.snackCat);
     list.sort(state.snackSort === 'taste' ? (a, b) => (+b['맛'] || 0) - (+a['맛'] || 0) || byDesc('작성일시')(a, b) : byDesc('작성일시'));
-    $('#main').innerHTML = `<div class="page-title">순간식 <small>${all.length}곳</small></div>
+    $('#main').innerHTML = `<div class="page-title">${bubble('cookie', 'butter')} 순간식 <small>${all.length}곳</small></div>
       <div class="chips">${cats.map(c => `<button class="chip ${c === state.snackCat ? 'on' : ''}" data-cat="${esc(c)}">${esc(c)}</button>`).join('')}</div>
       <div class="sort-row"><button class="${state.snackSort === 'new' ? 'on' : ''}" data-sort="new">최신순</button><button class="${state.snackSort === 'taste' ? 'on' : ''}" data-sort="taste">맛순</button></div>
-      <div class="speed-help">속도 별점: 많을수록 빨리 먹고 바로 나눔으로 넘어가기 좋아요</div>` +
+      <div class="speed-help">${ic('clock')} 속도 별점: 많을수록 빨리 먹고 바로 나눔으로 넘어가기 좋아요</div>` +
       (list.length ? list.map(s => `<div class="card snack-card" data-id="${s.id}">
           <div class="row"><div class="grow"><div class="shop">${esc(s['가게'])}</div><div class="menu">${esc(s['추천메뉴'])}</div></div><span class="badge gray">${esc(s['카테고리'] || '기타')}</span></div>
           <div class="stars-table"><span>양</span>${stars(s['양'])}<span>맛</span>${stars(s['맛'])}<span>속도</span>${stars(s['속도'])}</div>
           ${s['한줄평'] ? `<div class="review">${esc(s['한줄평'])}</div>` : ''}
-          <div class="meta">${s['추천인'] ? `<span>${esc(s['추천인'])} 추천</span>` : ''}<span>${esc((s['작성일시'] || '').slice(0, 10))}</span></div>
+          <div class="meta">${s['추천인'] ? `<span>${ic('user')}${esc(s['추천인'])} 추천</span>` : ''}<span>${ic('clock')}${esc((s['작성일시'] || '').slice(0, 10))}</span></div>
           <div class="card-actions">
-            ${s['링크'] ? `<a class="btn-sm primary" href="${esc(s['링크'])}" target="_blank" rel="noopener" style="text-decoration:none">주문하러 가기</a>` : ''}
+            ${s['링크'] ? `<a class="btn-sm primary" href="${esc(s['링크'])}" target="_blank" rel="noopener" style="text-decoration:none">${ic('link')}주문하러 가기</a>` : ''}
             <button class="btn-sm" data-edit>수정</button><button class="btn-sm danger" data-del>삭제</button>
-          </div></div>`).join('') : `<div class="empty">${state.snackCat === '전체' ? '아직 추천이 없어요.<br>+ 로 맛있었던 곳을 남겨주세요.' : '이 카테고리에는 아직 추천이 없어요.'}</div>`);
+          </div></div>`).join('') : `<div class="empty">${bubble('cookie', 'butter')}${state.snackCat === '전체' ? '아직 추천이 없어요.<br>+ 로 맛있었던 곳을 남겨주세요.' : '이 카테고리에는 아직 추천이 없어요.'}</div>`);
     $$('[data-cat]', $('#main')).forEach(b => b.onclick = () => { state.snackCat = b.dataset.cat; renderSnack(); });
     $$('[data-sort]', $('#main')).forEach(b => b.onclick = () => { state.snackSort = b.dataset.sort; renderSnack(); });
     $$('.card[data-id]', $('#main')).forEach(el => {
@@ -669,7 +691,8 @@
   function openForm(spec) {
     formSpec = spec;
     const init = spec.initial || {};
-    $('#sheet-title').textContent = spec.title;
+    const sheetIcon = { '공지': 'bell', '사진첩': 'camera', '일정': 'calendar', '기도제목': 'heart', '간식': 'cookie', '암송': 'sparkle', '통독': 'book' }[spec.sheet] || 'sparkle';
+    $('#sheet-title').innerHTML = ic(sheetIcon) + ' ' + esc(spec.title);
     $('#sheet-error').textContent = '';
     $('#sheet-form').innerHTML = spec.fields.map(f => fieldHtml(f, init)).join('') + (spec.help ? `<div class="help" style="font-size:12px;color:var(--ink-3)">${esc(spec.help)}</div>` : '');
     // 별점 입력
@@ -727,7 +750,7 @@
           <input type="text" name="${f.key}__other" data-other-input class="hidden" placeholder="직접 입력" value="${known ? '' : esc(v)}"></div>${help}</div>`;
       }
       case 'stars': return `<div class="field">${lab}<input type="hidden" name="${f.key}" value="${esc(v || '3')}"><div class="star-input">${[1, 2, 3, 4, 5].map(n => `<button type="button" data-v="${n}">★</button>`).join('')}</div>${help}</div>`;
-      case 'files': return `<div class="field">${lab}<div class="file-pick"><label class="pick"><span>사진 선택</span><input type="file" name="${f.key}" accept="image/*" multiple></label><div class="file-previews"></div><div class="upload-progress"></div></div>${help}</div>`;
+      case 'files': return `<div class="field">${lab}<div class="file-pick"><label class="pick">${ic('camera')}<span>사진 선택</span><input type="file" name="${f.key}" accept="image/*" multiple></label><div class="file-previews"></div><div class="upload-progress"></div></div>${help}</div>`;
       case 'timerange': return `<div class="field">${lab}<div class="inline"><input type="time" name="시작" value="${esc(init['시작'] || '')}"><input type="time" name="종료" value="${esc(init['종료'] || '')}"></div>${help}</div>`;
       case 'datetime': {
         const dv = f.dateName === '종료일' ? (init['종료일'] && init['종료일'] > init['날짜'] ? init['종료일'] : '') : (init[f.dateName] || '');
