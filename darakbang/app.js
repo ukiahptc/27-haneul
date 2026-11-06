@@ -6,7 +6,8 @@
   const PREVIEW = !CFG.API_URL || /[?&]preview=1/.test(location.search); // API 주소 없거나 ?preview=1 이면 미리보기 모드
   const SHEETS = ['공지', '일정', '기도제목', '간식', '암송', '통독', '사진첩'];
   const MAX_PHOTOS = 10, PHOTO_MAX_PX = 1600, PHOTO_QUALITY = 0.85;
-  const PRAYER_START = CFG.PRAYER_START || '2026-11-01'; // 기도제목 주차 시작 (주일)
+  const WEEK_START_DAY = 5; // 주차 시작 요일: 0=일 … 5=금
+  const PRAYER_START = CFG.PRAYER_START || '2026-10-30'; // 기도제목 1주차 시작일 (금)
   const SNACK_CATS = ['치킨', '피자', '중식', '분식', '한식', '양식', '카페·디저트', '기타'];
   const EVENT_KINDS = ['순모임', '행사', '기타'];
   const DOW = ['일', '월', '화', '수', '목', '금', '토'];
@@ -81,16 +82,16 @@
     if (n) return `${fmtShort(ev['날짜'])}${ev['시작'] ? ' ' + ev['시작'] : ''} ~ ${fmtShort(endOf(ev))}${ev['종료'] ? ' ' + ev['종료'] : ''} · ${n}박 ${n + 1}일`;
     return ev['시작'] ? ev['시작'] + (ev['종료'] ? '~' + ev['종료'] : '') : '';
   }
-  // ── 주차 (주일 시작)
-  function weekStart(dateStr) { const d = parseYmd(dateStr); if (!d) return ''; d.setDate(d.getDate() - d.getDay()); return ymd(d); }
-  function weekLabel(sunday) { const d = parseYmd(sunday); return d ? `${d.getMonth() + 1}월 ${Math.ceil(d.getDate() / 7)}주` : ''; }
-  function weekRange(sunday) { const a = parseYmd(sunday); if (!a) return ''; const b = new Date(a); b.setDate(b.getDate() + 6); return `${a.getMonth() + 1}.${a.getDate()}~${b.getMonth() + 1}.${b.getDate()}`; }
+  // ── 주차 (금요일 시작, 이름은 주가 끝나는 목요일이 속한 달 기준)
+  function weekStart(dateStr) { const d = parseYmd(dateStr); if (!d) return ''; d.setDate(d.getDate() - ((d.getDay() - WEEK_START_DAY + 7) % 7)); return ymd(d); }
+  function weekLabel(start) { const d = parseYmd(start); if (!d) return ''; d.setDate(d.getDate() + 6); return `${d.getMonth() + 1}월 ${Math.ceil(d.getDate() / 7)}주차`; }
+  function weekRange(start) { const a = parseYmd(start); if (!a) return ''; const b = new Date(a); b.setDate(b.getDate() + 6); return `${a.getMonth() + 1}.${a.getDate()}~${b.getMonth() + 1}.${b.getDate()}`; }
   function weekList() { // PRAYER_START부터 다음 주까지의 주일 목록 (오래된 순)
     const list = []; const end = parseYmd(weekStart(todayStr())); end.setDate(end.getDate() + 7);
     for (let d = parseYmd(weekStart(PRAYER_START)); d <= end; d.setDate(d.getDate() + 7)) list.push(ymd(d));
     return list;
   }
-  function prayerWeekOf(p) { return p['주차'] || weekStart((p['작성일시'] || '').slice(0, 10)); }
+  function prayerWeekOf(p) { return weekStart(p['주차'] || (p['작성일시'] || '').slice(0, 10)); } // 어떤 날짜가 들어 있어도 그 주의 시작(금)으로 맞춤
   function byDesc(key) { return (a, b) => String(b[key]).localeCompare(String(a[key])); }
   function byAsc(key) { return (a, b) => String(a[key]).localeCompare(String(b[key])); }
 
