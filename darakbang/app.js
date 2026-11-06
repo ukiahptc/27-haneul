@@ -6,6 +6,7 @@
   const PREVIEW = !CFG.API_URL || /[?&]preview=1/.test(location.search); // API 주소 없거나 ?preview=1 이면 미리보기 모드
   const SHEETS = ['공지', '일정', '기도제목', '간식', '암송', '통독', '사진첩'];
   const MAX_PHOTOS = 10, PHOTO_MAX_PX = 1600, PHOTO_QUALITY = 0.85;
+  const PRAYER_START = CFG.PRAYER_START || '2026-11-01'; // 기도제목 주차 시작 (주일)
   const SNACK_CATS = ['치킨', '피자', '중식', '분식', '한식', '양식', '카페·디저트', '기타'];
   const EVENT_KINDS = ['순모임', '행사', '기타'];
   const DOW = ['일', '월', '화', '수', '목', '금', '토'];
@@ -48,6 +49,7 @@
     snackSort: 'new',
     openNotice: null,
     viewer: null,
+    prayerWeek: null, // 선택한 주차(주일 날짜). null이면 이번 주
   };
 
   function loadCache() {
@@ -73,12 +75,22 @@
   function endOf(ev) { return ev['종료일'] && ev['종료일'] > ev['날짜'] ? ev['종료일'] : ev['날짜']; }
   function nights(ev) { const n = daysBetween(ev['날짜'], endOf(ev)); return n > 0 ? n : 0; }
   function covers(ev, day) { return ev['날짜'] <= day && day <= endOf(ev); }
-  // "11.25 09:00 – 11.27 15:00 · 2박 3일" / 하루면 "09:00–11:00"
+  // "11.25 09:00 ~ 11.27 15:00 · 2박 3일" / 하루면 "09:00~11:00"
   function whenLabel(ev) {
     const n = nights(ev);
-    if (n) return `${fmtShort(ev['날짜'])}${ev['시작'] ? ' ' + ev['시작'] : ''} – ${fmtShort(endOf(ev))}${ev['종료'] ? ' ' + ev['종료'] : ''} · ${n}박 ${n + 1}일`;
-    return ev['시작'] ? ev['시작'] + (ev['종료'] ? '–' + ev['종료'] : '') : '';
+    if (n) return `${fmtShort(ev['날짜'])}${ev['시작'] ? ' ' + ev['시작'] : ''} ~ ${fmtShort(endOf(ev))}${ev['종료'] ? ' ' + ev['종료'] : ''} · ${n}박 ${n + 1}일`;
+    return ev['시작'] ? ev['시작'] + (ev['종료'] ? '~' + ev['종료'] : '') : '';
   }
+  // ── 주차 (주일 시작)
+  function weekStart(dateStr) { const d = parseYmd(dateStr); if (!d) return ''; d.setDate(d.getDate() - d.getDay()); return ymd(d); }
+  function weekLabel(sunday) { const d = parseYmd(sunday); return d ? `${d.getMonth() + 1}월 ${Math.ceil(d.getDate() / 7)}주` : ''; }
+  function weekRange(sunday) { const a = parseYmd(sunday); if (!a) return ''; const b = new Date(a); b.setDate(b.getDate() + 6); return `${a.getMonth() + 1}.${a.getDate()}~${b.getMonth() + 1}.${b.getDate()}`; }
+  function weekList() { // PRAYER_START부터 다음 주까지의 주일 목록 (오래된 순)
+    const list = []; const end = parseYmd(weekStart(todayStr())); end.setDate(end.getDate() + 7);
+    for (let d = parseYmd(weekStart(PRAYER_START)); d <= end; d.setDate(d.getDate() + 7)) list.push(ymd(d));
+    return list;
+  }
+  function prayerWeekOf(p) { return p['주차'] || weekStart((p['작성일시'] || '').slice(0, 10)); }
   function byDesc(key) { return (a, b) => String(b[key]).localeCompare(String(a[key])); }
   function byAsc(key) { return (a, b) => String(a[key]).localeCompare(String(b[key])); }
 
@@ -152,9 +164,9 @@
         { id: 'e4', '날짜': d(23), '종료일': d(25), '시작': '09:00', '종료': '', '제목': '겨울 수련회', '장소': '양평 수양관', '종류': '행사', '메모': '2박 3일' },
       ],
       '기도제목': [
-        { id: 'p1', '작성일시': d(-1) + ' 22:00', '이름': '', '내용': '다음 주 면접 잘 볼 수 있도록', '응답': '', '응답메모': '' },
-        { id: 'p2', '작성일시': d(-3) + ' 22:00', '이름': 'J', '내용': '어머니 수술 회복', '응답': '', '응답메모': '' },
-        { id: 'p3', '작성일시': d(-15) + ' 22:00', '이름': '', '내용': '이직 결정에 지혜를', '응답': 'Y', '응답메모': '좋은 곳으로 결정했어요. 감사합니다.' },
+        { id: 'p1', '작성일시': d(-1) + ' 22:00', '주차': '', '이름': '', '내용': '다음 주 면접 잘 볼 수 있도록', '응답': '', '응답메모': '' },
+        { id: 'p2', '작성일시': d(-3) + ' 22:00', '주차': '', '이름': 'J', '내용': '어머니 수술 회복', '응답': '', '응답메모': '' },
+        { id: 'p3', '작성일시': d(-15) + ' 22:00', '주차': '', '이름': '', '내용': '이직 결정에 지혜를', '응답': 'Y', '응답메모': '좋은 곳으로 결정했어요. 감사합니다.' },
       ],
       '간식': [
         { id: 's1', '작성일시': d(-4) + ' 21:00', '가게': '교촌치킨 역삼점', '카테고리': '치킨', '추천메뉴': '허니콤보 + 치즈볼', '양': '4', '맛': '5', '속도': '3', '한줄평': '맛은 보장. 뼈 때문에 나눔 중에 먹기엔 좀 번거로움.', '추천인': '준원', '링크': '' },
@@ -583,21 +595,30 @@
 
   // ───────────────────────── ⑤ 기도제목 ─────────────────────────
   function renderPrayer() {
-    const all = rows('기도제목').slice().sort(byDesc('작성일시'));
+    const weeks = weekList();
+    const thisWeek = weekStart(todayStr());
+    if (!state.prayerWeek) state.prayerWeek = weeks.includes(thisWeek) ? thisWeek : weeks[weeks.length - 1];
+    const everything = rows('기도제목');
+    const all = (state.prayerWeek === 'all' ? everything : everything.filter(p => prayerWeekOf(p) === state.prayerWeek)).slice().sort(byDesc('작성일시'));
     const open = all.filter(p => p['응답'] !== 'Y');
     const done = all.filter(p => p['응답'] === 'Y');
+    const countOf = w => everything.filter(p => prayerWeekOf(p) === w).length;
+    const chips = `<div class="chips week-chips">${weeks.map(w => `<button class="chip ${w === state.prayerWeek ? 'on' : ''}" data-week="${w}">${weekLabel(w)}${w === thisWeek ? ' · 이번 주' : ''}${countOf(w) ? `<em>${countOf(w)}</em>` : ''}</button>`).join('')}<button class="chip ${state.prayerWeek === 'all' ? 'on' : ''}" data-week="all">전체</button></div>
+      <div class="week-range">${state.prayerWeek === 'all' ? `전체 ${everything.length}개` : `${ic('calendar')} ${weekRange(state.prayerWeek)}`}</div>`;
     const card = p => `<div class="card prayer-card" data-id="${p.id}">
         <div class="name">${ic('user')}${esc(p['이름'] || '익명')}</div>
         <div class="body">${esc(p['내용'])}</div>
         ${p['응답'] === 'Y' ? `<div class="answer"><b>${ic('check')}응답</b>${esc(p['응답메모'] || '응답되었어요')}</div>` : ''}
-        <div class="meta"><span>${esc((p['작성일시'] || '').slice(0, 10))}</span></div>
+        <div class="meta"><span>${ic('calendar')}${esc(weekLabel(prayerWeekOf(p)))}</span><span>${ic('clock')}${esc((p['작성일시'] || '').slice(0, 10))}</span></div>
         <div class="card-actions">
           ${p['응답'] === 'Y' ? '' : `<button class="btn-sm primary" data-answer>응답됨</button>`}
           <button class="btn-sm" data-edit>수정</button><button class="btn-sm danger" data-del>삭제</button>
         </div></div>`;
-    $('#main').innerHTML = `<div class="page-title">${bubble('heart', 'flesh')} 기도제목 <small>${open.length}개</small></div>` +
-      (open.length ? open.map(card).join('') : `<div class="empty">${bubble('heart', 'flesh')}나눈 기도제목이 없어요.<br>이름은 안 적어도 괜찮아요.</div>`) +
+    $('#main').innerHTML = `<div class="page-title">${bubble('heart', 'flesh')} 기도제목 <small>${open.length}개</small></div>` + chips +
+      (open.length ? open.map(card).join('') : `<div class="empty">${bubble('heart', 'flesh')}${state.prayerWeek === 'all' ? '나눈 기도제목이 없어요.' : weekLabel(state.prayerWeek) + '에 나눈 기도제목이 없어요.'}<br>이름은 안 적어도 괜찮아요.</div>`) +
       (done.length ? `<details class="fold"><summary>응답된 기도 ${done.length}개</summary>${done.map(card).join('')}</details>` : '');
+    $$('[data-week]', $('#main')).forEach(b => b.onclick = () => { state.prayerWeek = b.dataset.week; renderPrayer(); });
+    const on = $('.week-chips .chip.on', $('#main')); if (on) on.scrollIntoView({ inline: 'center', block: 'nearest' });
     $$('.card[data-id]', $('#main')).forEach(el => {
       const p = all.find(x => x.id === el.dataset.id);
       el.addEventListener('click', e => {
@@ -609,11 +630,14 @@
   }
   function openPrayerForm(cur) {
     openForm({
-      title: cur ? '기도제목 수정' : '기도제목 나누기', sheet: '기도제목', initial: cur || {},
+      title: cur ? '기도제목 수정' : '기도제목 나누기', sheet: '기도제목',
+      initial: cur ? Object.assign({}, cur, { '주차': prayerWeekOf(cur) }) : { '주차': state.prayerWeek && state.prayerWeek !== 'all' ? state.prayerWeek : weekStart(todayStr()) },
       fields: [
+        { key: '주차', label: '주차', type: 'select', options: weekList().slice().reverse(), labels: w => `${weekLabel(w)} (${weekRange(w)})`, required: true },
         { key: '내용', label: '기도제목', type: 'textarea', required: true },
         { key: '이름', label: '이름', type: 'text', placeholder: '비우면 익명으로 표시돼요' },
       ],
+      after: row => { state.prayerWeek = row['주차'] || state.prayerWeek; },
     });
   }
   function openAnswerForm(p) {
@@ -743,7 +767,7 @@
       case 'date': return `<div class="field">${lab}<input type="date" name="${f.key}" value="${esc(v)}">${help}</div>`;
       case 'url': return `<div class="field">${lab}<input type="url" name="${f.key}" value="${esc(v)}" placeholder="${esc(f.placeholder || '')}" inputmode="url">${help}</div>`;
       case 'check': return `<div class="field"><label class="check"><input type="checkbox" name="${f.key}" ${v === 'Y' ? 'checked' : ''}> ${esc(f.label)}</label>${help}</div>`;
-      case 'select': return `<div class="field">${lab}<select name="${f.key}">${f.options.map(o => `<option ${o === v ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>${help}</div>`;
+      case 'select': return `<div class="field">${lab}<select name="${f.key}">${f.options.map(o => `<option value="${esc(o)}" ${o === v ? 'selected' : ''}>${esc(f.labels ? f.labels(o) : o)}</option>`).join('')}</select>${help}</div>`;
       case 'select-other': {
         const known = f.options.includes(v) || !v;
         return `<div class="field">${lab}<div class="inline"><select name="${f.key}" data-other-select>${f.options.map(o => `<option ${(known ? o === v : o === '기타') ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>

@@ -254,3 +254,8 @@ nav.tabbar a.on svg { fill: rgba(123,59,110,.15); }
   #fab { right: calc(50% - 320px + 20px); }
   #sheet { border-radius: 26px 26px 0 0; }
 }
+
+/* ── 기도제목 주차 선택 ───────────────────────── */
+.week-chips .chip em { font-style: normal; margin-left: 6px; font-size: 11px; background: rgba(123,59,110,.12); color: var(--fig); padding: 1px 6px; border-radius: 8px; }
+.week-chips .chip.on em { background: rgba(255,255,255,.25); color: #fff; }
+.week-range { font-size: 13px; color: var(--ink-2); font-weight: 700; margin: -2px 2px 12px; display: flex; align-items: center; gap: 4px; }

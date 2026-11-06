@@ -145,3 +145,8 @@ apps-script/
 - **넓은 화면**: 700px 이상에서 탭 바·+ 버튼을 본문 폭(640px)에 맞춤.
 - **도메인**: `jwpfig.site` (가비아 DNS → GitHub Pages A 레코드 4개 + www CNAME, 저장소 `CNAME` 파일, Enforce HTTPS). 루트 `index.html`은 `/darakbang/`으로 자동 이동. 그룹 페이지는 `/group/` 유지.
 - **홈 화면 아이콘**: `darakbang/icons/icon-{180,192,512}.png` (무화과 로고, 크림 배경) + `manifest.webmanifest` + `apple-touch-icon`.
+
+### 2026-11-06 (v4)
+
+- **기도제목 주차별 보기**: `기도제목` 탭에 `주차` 열 추가(작성일시 다음, 값은 그 주 주일 날짜 `yyyy-mm-dd`). 주는 주일 시작, 이름은 주일이 속한 달 기준 "11월 1주" (= ceil(주일 일자/7)). 상단 주차 칩은 `PRAYER_START`(기본 2026-11-01, config.js로 변경 가능)부터 다음 주까지 + "전체". 작성 폼에서 주차 선택(기본 = 보고 있던 주). 주차가 비어 있는 기존 행은 작성일시로 주차 계산.
+- 날짜·시간 범위 표기의 "–"를 "~"로 통일 (써라운드 글꼴에 en dash 글리프 없음).
